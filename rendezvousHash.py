@@ -2,7 +2,7 @@ import hashlib
 
 from server_config import NODES
 
-class NodeRing():
+class Rendezvous_node():
 
     def __init__(self, nodes):
         assert len(nodes) > 0
@@ -14,7 +14,7 @@ class NodeRing():
         # below is the hash function to get weight(node,key)
         for i in range(len(self.nodes)):
             ss=str(self.nodes[i]['host'])+":"+str(self.nodes[i]['port'])
-            a=hash(ss)%(2**32)
+            a =int(hashlib.md5(ss.encode('utf-8')).hexdigest(), 16)
             weight.append(key%a)
         # from the list get the max weight(node, key) and return 
         return self.nodes[weight.index(max(weight))]

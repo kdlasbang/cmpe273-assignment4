@@ -85,7 +85,7 @@ def bloomfilter_delete(key):
 @lru_cache(5)
 def put(key,value,udp_clients):
     # TODO: PART II - Instead of going to server 0, use Naive hashing to split data into multiple servers
-    ring = NodeRing(nodes=NODES)
+    ring = Consistent_Node(nodes=NODES)
     node = ring.get_node(key)
     fix_me_server_id = node['port']-4000
     #fix_me_server_id=0
@@ -96,7 +96,7 @@ def put(key,value,udp_clients):
 @lru_cache(5)
 def get(key, value , udp_clients):
     if bloomfilter_is_member(key):
-        ring = NodeRing(nodes=NODES)
+        ring = Consistent_Node(nodes=NODES)
         node = ring.get_node(key)
         fix_me_server_id = node['port']-4000
         #fix_me_server_id=0
@@ -108,7 +108,7 @@ def get(key, value , udp_clients):
 @lru_cache(5)
 def delete(key,value,udp_clients):
     if bloomfilter_is_member(key):
-        ring = NodeRing(nodes=NODES)
+        ring = Consistent_Node(nodes=NODES)
         node = ring.get_node(key)
         fix_me_server_id = node['port']-4000
         #fix_me_server_id=0

@@ -10,9 +10,6 @@ class NodeRing():
     
     def get_node(self, key_hex):
         key = int(key_hex, 16)
-        print(hash(key))
-        ss=str(self.nodes[0]['host'])+":"+str(self.nodes[0]['port'])
-        print(hash(ss)%(2**32))
         node_index = key % len(self.nodes)
         return self.nodes[node_index]
 
