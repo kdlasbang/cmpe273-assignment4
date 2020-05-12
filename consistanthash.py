@@ -28,24 +28,29 @@ class Consistent_Node():
         key = int(key_hex, 16) # get the number from hex code
         node_index = key%(2**32) # get unique index from 0- 2^32 of a ring
         biggerrange = [] 
-        subrange = []
         nodeDict=[]
         
         # hash the server node and put into the ring
         for i in range(len(self.nodes)):
             ss=str(self.nodes[i]['host'])+":"+str(self.nodes[i]['port'])
             kk= int(hashlib.md5(ss.encode('utf-8')).hexdigest(), 16)
-            vk= int(hashlib.sha256(ss.encode('utf-8')).hexdigest(), 16) #generate virtual node
             server_key= kk%(2**32)
-            virtual_server_key = vk%(2**32)
-            nodeDict.append({'key' : virtual_server_key, 'index':i})
             nodeDict.append({'key' : server_key, 'index':i})
             add_server_node( server_key, biggerrange)
-            add_server_node(virtual_server_key,biggerrange)
         
+        #adding virtual node
+        virtual_node_num=32 #adding 32 virtual nodes
+        for k in range(virtual_node_num):
+            virtual_key = (2**32)-(int((2**32)/32)*k)
+            nodeDict.append({'key' : virtual_key, 'index':k%(len(self.nodes))})
+            add_server_node( virtual_key, biggerrange)
+        
+        #print(biggerrange)
+
         # because the node will choose the server depends on clockwise direction,
         # the node will choose the next closet server which is also the next larger node
         rangeArea = get_range(node_index, biggerrange)
+
         for i in range(len(nodeDict)):
             if nodeDict[i]['key']==biggerrange[rangeArea]:
                 return self.nodes[nodeDict[i]['index']]
@@ -55,7 +60,7 @@ class Consistent_Node():
 
 def test():
     ring = Consistent_Node(nodes=NODES)
-    node = ring.get_node('9ad5794ec94345c4873c4e591788743a')
+    node = ring.get_node('ed9440c442632621b608521b3f2650b8')
     print(node)
     #print(ring.get_node('ed9440c442632621b608521b3f2650b8'))
 

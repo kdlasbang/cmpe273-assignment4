@@ -6,10 +6,15 @@ from pickle_hash import serialize_GET, serialize_PUT, serialize_DELETE
 from node_ring import NodeRing
 from rendezvousHash import Rendezvous_node
 from consistanthash import Consistent_Node
+from lru_cache import lru_cache
+from bloom_filter import BloomFilter 
 
+
+NUM_KEYS = 20 
+FALSE_POSITIVE_PROBABILITY = 0.05
+bloomfilter = BloomFilter(NUM_KEYS, FALSE_POSITIVE_PROBABILITY) 
 BUFFER_SIZE = 1024
-hash_codes = set()
-cache= []
+globalclient=[]
 
 class UDPClient():
     def __init__(self, host, port):
@@ -27,93 +32,40 @@ class UDPClient():
             print("Error! {}".format(socket.error))
             exit()
 
-
-def savefileBloomfilter(hash_codes):
-    with open('bloomfilterMemberSet.py', 'w') as fp:
-        fp.write(str(hash_codes))
-
-def saveCache(cache):
-    with open('LRUCache.py', 'w') as f:
-        for item in cache:
-            f.write("%s\n" % item)
-
-
-def lru_cache(i):
-    def greeting_decorator(func):
-        def function_wrapper(x,y,z):
-            if func.__name__=="get":
-                for u in range(len(cache)):
-                    if cache[u]["key"]==x:
-                        return (cache[u]["data"])
-                output = func(x,y,z)
-                cache.append({"key":x,"data":output})
-                if len(cache)>i:
-                    cache.pop(0)
-                saveCache(cache)
-                return output
-            elif func.__name__=="put":
-                out= func(x,y,z)
-                cache.append({"key":out,"data":y})
-                if len(cache)>i:
-                    cache.pop(0)
-                saveCache(cache)
-                return out
-            elif func.__name__=="delete":
-                for u in range(len(cache)):
-                    if cache[u]["key"]==x:
-                        cache.pop(u)
-                        saveCache(cache)
-                        return func(x,y,z)
-        return function_wrapper
-    return greeting_decorator
-
-def bloomfilter_is_member(key):
-    global hash_codes
-    return key in hash_codes
-
-def bloomfilter_add(key):
-    global hash_codes
-    hash_codes.add(key)
-    savefileBloomfilter(hash_codes)
-
-def bloomfilter_delete(key):
-    global hash_codes
-    hash_codes.remove(key)
-    savefileBloomfilter(hash_codes)
-
 # value and key need to be after serialize
-@lru_cache(5)
-def put(key,value,udp_clients):
-    # TODO: PART II - Instead of going to server 0, use Naive hashing to split data into multiple servers
+def put(key,value):
+    global globalclient
     ring = NodeRing(nodes=NODES)
     node = ring.get_node(key)
     fix_me_server_id = node['port']-4000
     #fix_me_server_id=0
-    response = udp_clients[fix_me_server_id].send(value)
-    bloomfilter_add(response)
+    response = globalclient[fix_me_server_id].send(value)
+    bloomfilter.add(response)
     return response
 
 @lru_cache(5)
-def get(key, value , udp_clients):
-    if bloomfilter_is_member(key):
+def get(hc):
+    global globalclient
+    if bloomfilter.is_member(hc):
+        data_bytes, key = serialize_GET(hc)
         ring = NodeRing(nodes=NODES)
         node = ring.get_node(key)
         fix_me_server_id = node['port']-4000
         #fix_me_server_id=0
-        response = udp_clients[fix_me_server_id].send(value)
+        response = globalclient[fix_me_server_id].send(data_bytes)
         return response
     else:
         return None
 
-@lru_cache(5)
-def delete(key,value,udp_clients):
-    if bloomfilter_is_member(key):
+def delete(hc):
+    global globalclient
+    if bloomfilter.is_member(hc):
+        data_bytes, key = serialize_DELETE(hc)
         ring = NodeRing(nodes=NODES)
         node = ring.get_node(key)
         fix_me_server_id = node['port']-4000
         #fix_me_server_id=0
-        response = udp_clients[fix_me_server_id].send(value)
-        bloomfilter_delete(key)
+        response = globalclient[fix_me_server_id].send(data_bytes)
         return response
     else:
         return None
@@ -121,12 +73,15 @@ def delete(key,value,udp_clients):
 
 
 def process(udp_clients):
-    global hash_codes
+    hash_codes = set()
+    global globalclient
+    globalclient = udp_clients
     # PUT all users.
     for u in USERS:
         data_bytes, key = serialize_PUT(u)
-        response = put(key,data_bytes,udp_clients)
+        response = put(key,data_bytes)
         print(response)
+        hash_codes.add(response)
     print(f"Number of Users={len(USERS)}\nNumber of Users Cached={len(hash_codes)}")
     
 
@@ -134,15 +89,17 @@ def process(udp_clients):
     # GET all users.
     for hc in hash_codes:
         print(hc)
-        data_bytes, key = serialize_GET(hc)
-        response = get(key, data_bytes, udp_clients)
+        response = get(hc)
         print(response)
+
+    #delete all users
     htest=hash_codes.copy()
     for hc in htest:
-        data_bytes, key = serialize_DELETE(hc)
-        response = delete(key, data_bytes,udp_clients)
+        print(hc)
+        response = delete(hc)
         print(response)
-        
+        hash_codes.remove(hc)
+    #print(hash_codes)
 
 
 if __name__ == "__main__":
